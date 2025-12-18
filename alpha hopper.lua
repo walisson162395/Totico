@@ -1,0 +1,469 @@
+local function safeGetService(serviceName)
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    return success and service or nil
+end
+
+local CoreGui = safeGetService("CoreGui")
+if CoreGui then
+    local Prompt = CoreGui:FindFirstChild("promptOverlay", true)
+    if Prompt then
+        Prompt.ChildAdded:Connect(function(Child)
+            if typeof(Child) == "Instance" and Child.Name == "ErrorPrompt" and Child.ClassName == "Frame" then
+                local Error = Child:FindFirstChild("ErrorMessage", true)
+                if Error then
+                    repeat task.wait() until Error.Text ~= "Label"
+                    if Error.Text:find("kick") or Error.Text:find("conn") or Error.Text:find("rejoin") then
+                        task.wait(1)
+                        local TeleportService = safeGetService("TeleportService")
+                        local Players = safeGetService("Players")
+                        if TeleportService and Players and Players.LocalPlayer then
+                            pcall(function()
+                                TeleportService:Teleport(109983668079237, Players.LocalPlayer)
+                            end)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+task.spawn(function()
+    local Players = safeGetService("Players")
+    local CoreGui = safeGetService("CoreGui")
+    
+    if not Players or not Players.LocalPlayer then return end
+    if not CoreGui or CoreGui:FindFirstChild("StopwatchUI") then return end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "StopwatchUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent = CoreGui
+
+    local background = Instance.new("Frame")
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.Position = UDim2.new(0, 0, 0, 0)
+    background.BackgroundColor3 = Color3.fromRGB(14, 14, 14)
+    background.Parent = screenGui
+
+    local topLabel = Instance.new("TextLabel")
+    topLabel.Size = UDim2.new(1, 0, 0, 50)
+    topLabel.Position = UDim2.new(0, 0, 0, 0)
+    topLabel.BackgroundTransparency = 1
+    topLabel.Text = "Stopwatch"
+    topLabel.Font = Enum.Font.SourceSansBold
+    topLabel.TextSize = 30
+    topLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    topLabel.Parent = background
+
+    local stopwatchLabel = Instance.new("TextLabel")
+    stopwatchLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    stopwatchLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    stopwatchLabel.Size = UDim2.new(0, 300, 0, 100)
+    stopwatchLabel.BackgroundTransparency = 1
+    stopwatchLabel.Text = "0"
+    stopwatchLabel.Font = Enum.Font.SourceSansBold
+    stopwatchLabel.TextSize = 60
+    stopwatchLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stopwatchLabel.Parent = background
+
+    if game.PlaceId == 109983668079237 then
+        topLabel.Text = "-- IN MAIN GAME! --"
+        background.BackgroundColor3 = Color3.fromRGB(81, 255, 0)
+    else
+        screenGui:Destroy()
+    end
+
+    local seconds = 0
+    task.spawn(function()
+        while true do
+            stopwatchLabel.Text = tostring(seconds)
+            seconds += 1
+            task.wait(1)
+        end
+    end)
+end)
+
+repeat task.wait() until game:IsLoaded()
+
+setfpscap(10)
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local PlayersService = game:GetService("Players")
+local request = request
+local PLACE_ID = 109983668079237
+local brainrots = {}
+
+-- ✅ API ADD del hopper nuevo
+local API_URL_ADD = "https://mono-webjoin.up.railway.app/add-server"
+-- ✅ API GET original (tu IP)
+local HTTP_URL = "http://78.109.16.22:8081/next_id"
+local BEARER_TOKEN = "atlas_publish_key_z8237498dz7a42caa9fdb391z"
+
+-- ✅ Tiers del hopper nuevo
+local function determineTier(value)
+    if value >= 1e7 and value < 5e7 then return "10m"
+    elseif value >= 5e7 and value < 1e8 then return "50m"
+    elseif value >= 1e8 and value < 3e8 then return "100m"
+    elseif value >= 3e8 then return "300m"
+    else return nil end
+end
+
+local function parseGeneration(gen)
+    if type(gen) ~= "string" then return 0 end
+    gen = gen:lower():gsub("%s+", "")
+    if not gen:find("%$") or not gen:find("/s") then
+        return 0
+    end
+    local num, suffix = gen:match("([%d%.]+)([kmb]?)")
+    local value = tonumber(num) or 0
+    local multipliers = { k = 1e3, m = 1e6, b = 1e9 }
+    if suffix and multipliers[suffix] then
+        value *= multipliers[suffix]
+    end
+    return value
+end
+
+-- ✅ SendToAPI con formato del hopper
+local function SendToAPI(brainrotList)
+    local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request)
+    if not req then 
+        print("[❌] No request function available")
+        return 
+    end
+    
+    local allBrainrots = {}
+    for _, b in ipairs(brainrotList) do
+        local tier = determineTier(b.genValue)
+        if tier then
+            table.insert(allBrainrots, {
+                tier = tier,
+                name = b.name,
+                gen = b.genText,
+                value = b.genValue
+            })
+        end
+    end
+    
+    if #allBrainrots == 0 then
+        print("[⚠️] No brainrots con tier válido para enviar")
+        return
+    end
+    
+    local body = HttpService:JSONEncode({
+        jobId = game.JobId,
+        players = #PlayersService:GetPlayers(),
+        brainrots = allBrainrots,
+        timestamp = os.time()
+    })
+    
+    local ok, err = pcall(function()
+        req({
+            Url = API_URL_ADD,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = body
+        })
+    end)
+    
+    if ok then
+        print("[✅] Enviado a API con "..#allBrainrots.." brainrots y "..#PlayersService:GetPlayers().." players")
+    else
+        print("[❌] Error enviando a API: "..tostring(err))
+    end
+end
+
+-- ✅ GetJobId original (tu API con Bearer token)
+local function autoTeleportFromLocalHost()
+    local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request)
+    if not req then return end
+    
+    local ok, result = pcall(function()
+        return req({
+            Url = HTTP_URL,
+            Method = "GET",
+            Headers = {
+                ["Accept"] = "text/plain",
+                ["User-Agent"] = "Roblox/HttpService",
+                ["Authorization"] = "Bearer " .. BEARER_TOKEN
+            }
+        })
+    end)
+
+    if ok and result and result.Body and result.Body ~= "" then
+        local jobId = string.gsub(result.Body, "[\r\n]", "")
+        print("✅ Got ID:", jobId)
+        TeleportService:TeleportCancel()
+        TeleportService:TeleportToPlaceInstance(PLACE_ID, jobId)
+        task.wait(1)
+        TeleportService:TeleportCancel()
+    else
+        warn("⚠️ Request error or exception — retrying...")
+    end
+end
+
+local function scanBrainrots(plots)
+    local foundBrainrots = {}
+    
+    pcall(function()
+        for _, obj in ipairs(plots:GetDescendants()) do
+            pcall(function()
+                if obj:IsA("BillboardGui") then
+                    local displayName, genText
+                    for _, c in ipairs(obj:GetDescendants()) do
+                        pcall(function()
+                            if c:IsA("TextLabel") or c:IsA("TextButton") then
+                                if c.Name == "DisplayName" and c.Text ~= "" then
+                                    displayName = c.Text
+                                elseif c.Name == "Generation" or (c.Text and c.Text:find("/s")) then
+                                    genText = c.Text
+                                end
+                            end
+                        end)
+                    end
+                    if displayName and genText then
+                        local genValue = parseGeneration(genText)
+                        -- Mínimo 10M para que tenga tier válido
+                        if genValue >= 1e7 then
+                            table.insert(foundBrainrots, {
+                                name = displayName,
+                                genText = genText,
+                                genValue = genValue
+                            })
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    pcall(function()
+        table.sort(foundBrainrots, function(a, b)
+            return a.genValue > b.genValue
+        end)
+    end)
+    
+    return foundBrainrots
+end
+
+local function logBrainrots(brainrotList, reason)
+    if #brainrotList > 0 then
+        print("=== Brainrots Found (" .. reason .. ") ===")
+        for i, b in ipairs(brainrotList) do
+            print(string.format("%d. %s — %s (%s/s)", i, b.name, b.genText, tostring(b.genValue)))
+        end
+        print("============================")
+    else
+        print("=== No Brainrots Found (" .. reason .. ") ===")
+    end
+
+    SendToAPI(brainrotList)
+end
+
+print("Waiting for game to fully load...")
+
+local function waitForGameLoad()
+    local startTime = tick()
+    local maxWaitTime = 30
+    
+    local player = PlayersService.LocalPlayer
+    if not player then
+        repeat
+            task.wait(0.1)
+            player = PlayersService.LocalPlayer
+        until player or tick() - startTime > maxWaitTime
+    end
+    
+    if not player then
+        warn("Failed to get LocalPlayer")
+        return false
+    end
+    
+    print("Waiting for character...")
+    local character = player.Character or player.CharacterAdded:Wait()
+    
+    print("Waiting for HumanoidRootPart...")
+    local hrp = character:WaitForChild("HumanoidRootPart", 10)
+    if not hrp then
+        warn("HumanoidRootPart not found")
+        return false
+    end
+    
+    print("Waiting for Workspace.Plots...")
+    local plots = game:GetService("Workspace"):WaitForChild("Plots", 15)
+    if not plots then
+        warn("Workspace.Plots not found")
+        return false
+    end
+    
+    print("Waiting for game content to populate...")
+    local contentLoaded = false
+    local checkStart = tick()
+    
+    while tick() - checkStart < 10 do
+        local descendantCount = #plots:GetDescendants()
+        if descendantCount > 10 then
+            contentLoaded = true
+            break
+        end
+        task.wait(0.5)
+    end
+    
+    if not contentLoaded then
+        warn("Game content may not be fully loaded, but proceeding anyway...")
+    end
+    
+    task.wait(2)
+    
+    print("✅ Game appears to be loaded!")
+    return true
+end
+
+local gameLoaded = waitForGameLoad()
+if not gameLoaded then
+    warn("Game load verification failed, but continuing anyway...")
+end
+
+local function main()
+    local plots = game:GetService("Workspace"):FindFirstChild("Plots")
+    if not plots then
+        warn("Workspace.Plots not found!")
+        return false
+    end
+
+    local function waitForBrainrots()
+        local maxWaitTime = 10
+        local foundBrainrot = false
+        local connection
+        
+        print("Waiting for brainrots to load...")
+        
+        pcall(function()
+            for _, obj in ipairs(plots:GetDescendants()) do
+                if obj:IsA("BillboardGui") then
+                    for _, c in ipairs(obj:GetDescendants()) do
+                        if c:IsA("TextLabel") or c:IsA("TextButton") then
+                            if (c.Name == "Generation" or (c.Text and c.Text:find("/s"))) and c.Text ~= "" then
+                                print("Brainrots already loaded! Proceeding with scan...")
+                                foundBrainrot = true
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        
+        if foundBrainrot then return true end
+        
+        pcall(function()
+            connection = plots.DescendantAdded:Connect(function(descendant)
+                if foundBrainrot then return end
+                
+                pcall(function()
+                    if descendant:IsA("TextLabel") or descendant:IsA("TextButton") then
+                        if (descendant.Name == "Generation" or (descendant.Text and descendant.Text:find("/s"))) and descendant.Text ~= "" then
+                            foundBrainrot = true
+                            print("Brainrots found! Proceeding with scan...")
+                        end
+                    end
+                end)
+            end)
+        end)
+        
+        local elapsed = 0
+        while elapsed < maxWaitTime and not foundBrainrot do
+            task.wait(0.1)
+            elapsed += 0.1
+        end
+        
+        pcall(function()
+            if connection then
+                connection:Disconnect()
+            end
+        end)
+        
+        if not foundBrainrot then
+            print("Timeout reached. Skipping scan...")
+        end
+        
+        return foundBrainrot
+    end
+
+    local brainrotsLoaded = waitForBrainrots()
+
+    if brainrotsLoaded then
+        brainrots = scanBrainrots(plots)
+        logBrainrots(brainrots, "Initial Scan")
+        
+        if #brainrots > 0 then
+            local hasHighValue = brainrots[1].genValue >= 5e7
+            
+            if hasHighValue then
+                print("⚡ High value brainrot found! Proceeding to teleport immediately...")
+                return true
+            end
+        end
+        
+        local monitorDuration = math.random(5, 6)
+        print(string.format("🔍 Monitoring for changes for %d seconds...", monitorDuration))
+        
+        local startTime = tick()
+        local lastHighestValue = brainrots[1] and brainrots[1].genValue or 0
+        
+        while tick() - startTime < monitorDuration do
+            task.wait(0.5)
+            
+            local currentBrainrots = scanBrainrots(plots)
+            
+            if #currentBrainrots > 0 then
+                local currentHighest = currentBrainrots[1].genValue
+                
+                if currentHighest >= 5e7 and currentHighest > lastHighestValue then
+                    print("⚡ NEW high value brainrot detected!")
+                    logBrainrots(currentBrainrots, "Monitoring Update")
+                    print("🚀 Proceeding to next server...")
+                    return true
+                end
+                
+                lastHighestValue = currentHighest
+            end
+        end
+        
+        print("✅ Monitoring complete. No new high value brainrots found.")
+    else
+        print("No brainrots detected. Sending empty log...")
+        logBrainrots({}, "No Brainrots Detected")
+    end
+    
+    return true
+end
+
+local mainCompleted = false
+
+task.spawn(function()
+    pcall(main)
+    mainCompleted = true
+end)
+
+task.spawn(function()
+    task.wait(40)
+    if not mainCompleted then
+        warn("[⚠️] Main execution timed out after 40 seconds")
+        mainCompleted = true
+    end
+end)
+
+while not mainCompleted do
+    task.wait(0.1)
+end
+
+print("Proceeding to auto-teleport...")
+
+while true do
+    autoTeleportFromLocalHost()
+    task.wait(2)
+end
