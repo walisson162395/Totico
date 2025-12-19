@@ -97,13 +97,10 @@ local request = request
 local PLACE_ID = 109983668079237
 local brainrots = {}
 
--- ✅ API ADD del hopper nuevo
 local API_URL_ADD = "https://mono-webjoin.up.railway.app/add-server"
--- ✅ API GET original (tu IP)
 local HTTP_URL = "http://78.109.16.22:8081/next_id"
 local BEARER_TOKEN = "atlas_publish_key_z8237498dz7a42caa9fdb391z"
 
--- ✅ Tiers del hopper nuevo
 local function determineTier(value)
     if value >= 1e7 and value < 5e7 then return "10m"
     elseif value >= 5e7 and value < 1e8 then return "50m"
@@ -127,7 +124,6 @@ local function parseGeneration(gen)
     return value
 end
 
--- ✅ SendToAPI con formato del hopper
 local function SendToAPI(brainrotList)
     local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request)
     if not req then 
@@ -176,7 +172,6 @@ local function SendToAPI(brainrotList)
     end
 end
 
--- ✅ GetJobId original (tu API con Bearer token)
 local function autoTeleportFromLocalHost()
     local req = http_request or request or (syn and syn.request) or (fluxus and fluxus.request)
     if not req then return end
@@ -226,7 +221,6 @@ local function scanBrainrots(plots)
                     end
                     if displayName and genText then
                         local genValue = parseGeneration(genText)
-                        -- Mínimo 10M para que tenga tier válido
                         if genValue >= 1e7 then
                             table.insert(foundBrainrots, {
                                 name = displayName,
@@ -267,7 +261,7 @@ print("Waiting for game to fully load...")
 
 local function waitForGameLoad()
     local startTime = tick()
-    local maxWaitTime = 30
+    local maxWaitTime = 10  -- ✅ Reducido de 30s a 10s
     
     local player = PlayersService.LocalPlayer
     if not player then
@@ -286,14 +280,14 @@ local function waitForGameLoad()
     local character = player.Character or player.CharacterAdded:Wait()
     
     print("Waiting for HumanoidRootPart...")
-    local hrp = character:WaitForChild("HumanoidRootPart", 10)
+    local hrp = character:WaitForChild("HumanoidRootPart", 5)  -- ✅ Reducido de 10s a 5s
     if not hrp then
         warn("HumanoidRootPart not found")
         return false
     end
     
     print("Waiting for Workspace.Plots...")
-    local plots = game:GetService("Workspace"):WaitForChild("Plots", 15)
+    local plots = game:GetService("Workspace"):WaitForChild("Plots", 8)  -- ✅ Reducido de 15s a 8s
     if not plots then
         warn("Workspace.Plots not found")
         return false
@@ -303,20 +297,20 @@ local function waitForGameLoad()
     local contentLoaded = false
     local checkStart = tick()
     
-    while tick() - checkStart < 10 do
+    while tick() - checkStart < 5 do  -- ✅ Reducido de 10s a 5s
         local descendantCount = #plots:GetDescendants()
         if descendantCount > 10 then
             contentLoaded = true
             break
         end
-        task.wait(0.5)
+        task.wait(0.3)  -- ✅ Reducido de 0.5s a 0.3s
     end
     
     if not contentLoaded then
         warn("Game content may not be fully loaded, but proceeding anyway...")
     end
     
-    task.wait(2)
+    task.wait(0.5)  -- ✅ Reducido de 2s a 0.5s
     
     print("✅ Game appears to be loaded!")
     return true
@@ -335,7 +329,7 @@ local function main()
     end
 
     local function waitForBrainrots()
-        local maxWaitTime = 10
+        local maxWaitTime = 5  -- ✅ Reducido de 10s a 5s
         local foundBrainrot = false
         local connection
         
@@ -408,7 +402,7 @@ local function main()
             end
         end
         
-        local monitorDuration = math.random(5, 6)
+        local monitorDuration = math.random(2, 3)  -- ✅ Reducido de 5-6s a 2-3s
         print(string.format("🔍 Monitoring for changes for %d seconds...", monitorDuration))
         
         local startTime = tick()
@@ -450,9 +444,9 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    task.wait(40)
+    task.wait(20)  -- ✅ Reducido de 40s a 20s
     if not mainCompleted then
-        warn("[⚠️] Main execution timed out after 40 seconds")
+        warn("[⚠️] Main execution timed out after 20 seconds")
         mainCompleted = true
     end
 end)
